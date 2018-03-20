@@ -1,4 +1,5 @@
-from .voc0712 import VOCDetection, AnnotationTransform, detection_collate, VOC_CLASSES
+from .voc0712 import VOCDetection, AnnotationTransformVOC, detection_collate
+from .handles import HandlesDetection, AnnotationTransform_handles
 from .config import *
 import cv2
 import numpy as np

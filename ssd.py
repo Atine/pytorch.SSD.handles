@@ -24,10 +24,11 @@ class SSD(nn.Module):
         head: "multibox head" consists of loc and conf conv layers
     """
 
-    def __init__(self, phase, base, extras, head, num_classes):
+    def __init__(self, phase, base, extras, head, num_classes, forward_classes):
         super(SSD, self).__init__()
         self.phase = phase
         self.num_classes = num_classes
+        self.forward_classes = forward_classes
         # TODO: implement __call__ in PriorBox
         self.priorbox = PriorBox(v2)
         self.priors = Variable(self.priorbox.forward(), volatile=True)
@@ -98,13 +99,13 @@ class SSD(nn.Module):
             output = self.detect(
                 loc.view(loc.size(0), -1, 4),                   # loc preds
                 self.softmax(conf.view(conf.size(0), -1,
-                    self.num_classes)),                         # conf preds
+                    self.forward_classes)),                         # conf preds
                 self.priors.type(type(x.data))                  # default boxes
             )
         else:
             output = (
                 loc.view(loc.size(0), -1, 4),
-                conf.view(conf.size(0), -1, self.num_classes),
+                conf.view(conf.size(0), -1, self.forward_classes),
                 self.priors
             )
         return output
@@ -194,7 +195,7 @@ mbox = {
 }
 
 
-def build_ssd(phase, size=300, num_classes=21):
+def build_ssd(phase, size=300, num_classes=21, forward_classes=21):
     if phase != "test" and phase != "train":
         print("Error: Phase not recognized")
         return
@@ -204,4 +205,4 @@ def build_ssd(phase, size=300, num_classes=21):
     base_, extras_, head_ = multibox(vgg(base[str(size)], 3),
                                      add_extras(extras[str(size)], 1024),
                                      mbox[str(size)], num_classes)
-    return SSD(phase, base_, extras_, head_, num_classes)
+    return SSD(phase, base_, extras_, head_, num_classes, forward_classes)

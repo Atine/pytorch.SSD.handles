@@ -7,7 +7,8 @@ import torch.nn.init as init
 import argparse
 from torch.autograd import Variable
 import torch.utils.data as data
-from data import v2, v1, AnnotationTransform, VOCDetection, detection_collate, VOCroot, VOC_CLASSES
+from data import v2, v1, VOCroot, VOCDetection, HandlesDetection
+from data import AnnotationTransformVOC, AnnotationTransform_handles, detection_collate
 from utils.augmentations import SSDAugmentation
 from layers.modules import MultiBoxLoss
 from ssd import build_ssd
@@ -15,7 +16,8 @@ import numpy as np
 import time
 
 def str2bool(v):
-    return v.lower() in ("yes", "true", "t", "1")
+    return v.lower() in ("yes", "true", "t", "y", "1")
+
 
 parser = argparse.ArgumentParser(description='Single Shot MultiBox Detector Training')
 parser.add_argument('--version', default='v2', help='conv11_2(v2) or pool6(v1) as last layer')
@@ -35,7 +37,7 @@ parser.add_argument('--log_iters', default=True, type=bool, help='Print the loss
 parser.add_argument('--visdom', default=False, type=str2bool, help='Use visdom to for loss visualization')
 parser.add_argument('--send_images_to_visdom', type=str2bool, default=False, help='Sample a random image from each 10th batch, send it to visdom after augmentations step')
 parser.add_argument('--save_folder', default='weights/', help='Location to save checkpoint models')
-parser.add_argument('--voc_root', default=VOCroot, help='Location of VOC root directory')
+parser.add_argument('--data_root', default=VOCroot, help='Location of VOC root directory')
 args = parser.parse_args()
 
 if args.cuda and torch.cuda.is_available():
@@ -48,10 +50,22 @@ cfg = (v1, v2)[args.version == 'v2']
 if not os.path.exists(args.save_folder):
     os.mkdir(args.save_folder)
 
-train_sets = [('2007', 'trainval'), ('2012', 'trainval')]
-# train_sets = 'train'
+#train_sets = [('2007', 'trainval'), ('2012', 'trainval')]
+train_sets = [('2007', 'trainval')]
 ssd_dim = 300  # only support 300 now
 means = (104, 117, 123)  # only support voc now
+
+
+VOC_CLASSES = (  # always index 0
+     'aeroplane', 'bicycle', 'bird', 'boat',
+     'bottle', 'bus', 'car', 'cat', 'chair',
+     'cow', 'diningtable', 'dog', 'horse',
+     'motorbike', 'person', 'pottedplant',
+     'sheep', 'sofa', 'train', 'tvmonitor')
+
+HANDLES_CLASSES = ('door', 'handle')
+
+
 num_classes = len(VOC_CLASSES) + 1
 batch_size = args.batch_size
 accum_batch_size = 32
@@ -61,17 +75,15 @@ weight_decay = 0.0005
 stepvalues = (80000, 100000, 120000)
 gamma = 0.1
 momentum = 0.9
+ssd_net = build_ssd('train', 300, num_classes, forward_classes=3 if 'handle' in args.data_root else 21)
+net = ssd_net
+print (net)
+
+#### argument changes ####
 
 if args.visdom:
     import visdom
     viz = visdom.Visdom()
-
-ssd_net = build_ssd('train', 300, num_classes)
-net = ssd_net
-
-if args.cuda:
-    net = torch.nn.DataParallel(ssd_net)
-    cudnn.benchmark = True
 
 if args.resume:
     print('Resuming training, loading {}...'.format(args.resume))
@@ -81,19 +93,30 @@ else:
     print('Loading base network...')
     ssd_net.vgg.load_state_dict(vgg_weights)
 
+if 'handles' in args.data_root:
+  net.conf._modules['0'] = nn.Conv2d(512,12, kernel_size=(3,3), stride=(1,1), padding=(1,1))
+  net.conf._modules['1'] = nn.Conv2d(1024,18, kernel_size=(3,3), stride=(1,1), padding=(1,1))
+  net.conf._modules['2'] = nn.Conv2d(512,18, kernel_size=(3,3), stride=(1,1), padding=(1,1))
+  net.conf._modules['3'] = nn.Conv2d(256,18, kernel_size=(3,3), stride=(1,1), padding=(1,1))
+  net.conf._modules['4'] = nn.Conv2d(256,12, kernel_size=(3,3), stride=(1,1), padding=(1,1))
+  net.conf._modules['5'] = nn.Conv2d(256,12, kernel_size=(3,3), stride=(1,1), padding=(1,1))
+  num_classes = len(HANDLES_CLASSES) + 1
+
 if args.cuda:
+    net = torch.nn.DataParallel(ssd_net)
+    cudnn.benchmark = True
     net = net.cuda()
 
 
+#### inits ####
+
 def xavier(param):
     init.xavier_uniform(param)
-
 
 def weights_init(m):
     if isinstance(m, nn.Conv2d):
         xavier(m.weight.data)
         m.bias.data.zero_()
-
 
 if not args.resume:
     print('Initializing weights...')
@@ -115,8 +138,15 @@ def train():
     epoch = 0
     print('Loading Dataset...')
 
-    dataset = VOCDetection(args.voc_root, train_sets, SSDAugmentation(
-        ssd_dim, means), AnnotationTransform())
+    if 'handles' in args.data_root:
+      dataset = HandlesDetection(
+                args.data_root,
+                transform=SSDAugmentation(ssd_dim, means),
+                target_transform=AnnotationTransform_handles())
+
+    else:
+      dataset = VOCDetection(args.data_root, train_sets, SSDAugmentation(
+        ssd_dim, means), AnnotationTransformVOC())
 
     epoch_size = len(dataset) // args.batch_size
     print('Training SSD on', dataset.name)
@@ -212,7 +242,7 @@ def train():
                 )
         if iteration % 5000 == 0:
             print('Saving state, iter:', iteration)
-            torch.save(ssd_net.state_dict(), 'weights/ssd300_0712_' +
+            torch.save(ssd_net.state_dict(), 'weights/ssd300_handles' +
                        repr(iteration) + '.pth')
     torch.save(ssd_net.state_dict(), args.save_folder + '' + args.version + '.pth')
 
