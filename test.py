@@ -7,22 +7,33 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 from torch.autograd import Variable
-from data import VOCroot, VOC_CLASSES as labelmap
+from data import VOCroot, BaseTransform
 from PIL import Image
-from data import AnnotationTransform, VOCDetection, BaseTransform, VOC_CLASSES
+from data import AnnotationTransform_handles, HandlesDetection
+from data import AnnotationTransformVOC, VOCDetection
 import torch.utils.data as data
 from ssd import build_ssd
 
+VOC_CLASSES = (  # always index 0
+      'aeroplane', 'bicycle', 'bird', 'boat',
+      'bottle', 'bus', 'car', 'cat', 'chair',
+      'cow', 'diningtable', 'dog', 'horse',
+      'motorbike', 'person', 'pottedplant',
+      'sheep', 'sofa', 'train', 'tvmonitor')
+
+HANDLES_CLASSES = ('door', 'handle')
+
+
 parser = argparse.ArgumentParser(description='Single Shot MultiBox Detection')
-parser.add_argument('--trained_model', default='weights/ssd_300_VOC0712.pth',
+parser.add_argument('--trained_model', required=True,
                     type=str, help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
 parser.add_argument('--visual_threshold', default=0.6, type=float,
                     help='Final confidence threshold')
-parser.add_argument('--cuda', default=False, type=bool,
+parser.add_argument('--no-cuda', action='store_false', dest='cuda',
                     help='Use cuda to train model')
-parser.add_argument('--voc_root', default=VOCroot, help='Location of VOC root directory')
+parser.add_argument('--data_root', default=VOCroot, help='Location of VOC root directory')
 
 args = parser.parse_args()
 
@@ -54,12 +65,13 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
         scale = torch.Tensor([img.shape[1], img.shape[0],
                              img.shape[1], img.shape[0]])
         pred_num = 0
+        with open(filename, mode='a') as f:
+            f.write('PREDICTIONS: '+'\n')
+
+
         for i in range(detections.size(1)):
             j = 0
             while detections[0, i, j, 0] >= 0.6:
-                if pred_num == 0:
-                    with open(filename, mode='a') as f:
-                        f.write('PREDICTIONS: '+'\n')
                 score = detections[0, i, j, 0]
                 label_name = labelmap[i-1]
                 pt = (detections[0, i, j, 1:]*scale).cpu().numpy()
@@ -73,16 +85,24 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
 
 if __name__ == '__main__':
     # load net
-    num_classes = len(VOC_CLASSES) + 1 # +1 background
+    if 'handle' in args.data_root:
+      num_classes = len(HANDLES_CLASSES) + 1 # +1 background
+      testset = HandlesDetection(args.data_root, None, AnnotationTransform_handles(), dataset='test')
+      labelmap = HANDLES_CLASSES
+    else:
+      num_classes = len(VOC_CLASSES) + 1 # +1 background
+      testset = VOCDetection(args.data_root, [('2007', 'test')], None, AnnotationTransformVOC())
+      labelmap = VOC_CLASSES
+
     net = build_ssd('test', 300, num_classes) # initialize SSD
-    net.load_state_dict(torch.load(args.trained_model))
+    net.load_weights(args.trained_model)
     net.eval()
     print('Finished loading model!')
-    # load data
-    testset = VOCDetection(args.voc_root, [('2007', 'test')], None, AnnotationTransform())
+
     if args.cuda:
         net = net.cuda()
         cudnn.benchmark = True
+
     # evaluation
     test_net(args.save_folder, net, args.cuda, testset,
              BaseTransform(net.size, (104, 117, 123)),

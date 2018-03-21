@@ -98,19 +98,18 @@ class HandlesDetection(data.Dataset):
             (default: 'VOC2007')
     """
 
-    def __init__(self, root, transform=None, target_transform=None, dataset_name='handles'):
+    def __init__(self, root, transform=None, target_transform=None, dataset='train'):
         self.root = root
         self.transform = transform
         self.target_transform = target_transform
-        self.name = dataset_name
-        self._annopath = os.path.join('%s', 'train', 'Annotations', '%s', '%s.xml')
-        self._imgpath  = os.path.join('%s', 'train', 'JPEGImages' , '%s', '%s.jpg')
+        self._annopath = os.path.join('%s', dataset, 'Annotations', '%s', '%s.xml')
+        self._imgpath  = os.path.join('%s', dataset, 'JPEGImages' , '%s', '%s.jpg')
         self.ids = list()
 
         rootpath = os.path.join(self.root)
         subsets = ['doors', 'handles', 'knobs']
         for name in subsets:
-            path_name = os.path.join(rootpath, 'train', 'JPEGImages', name)
+            path_name = os.path.join(rootpath, dataset, 'JPEGImages', name)
             for numbers in tqdm(glob.glob(os.path.join(path_name, '*.*'))):
               if os.path.isfile(numbers):
                   self.ids.append((rootpath, name, os.path.basename(os.path.splitext(numbers)[0])))
