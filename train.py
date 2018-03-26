@@ -21,7 +21,7 @@ def str2bool(v):
 
 parser = argparse.ArgumentParser(description='Single Shot MultiBox Detector Training')
 parser.add_argument('--version', default='v2', help='conv11_2(v2) or pool6(v1) as last layer')
-parser.add_argument('--basenet', default='vgg16_reducedfc.pth', help='pretrained base model')
+parser.add_argument('--basenet', default='vgg16', help='pretrained base model')
 parser.add_argument('--jaccard_threshold', default=0.5, type=float, help='Min Jaccard index for matching')
 parser.add_argument('--batch_size', default=32, type=int, help='Batch size for training')
 parser.add_argument('--resume', default=None, type=str, help='Resume from checkpoint')
@@ -75,7 +75,7 @@ weight_decay = 0.0005
 stepvalues = (80000, 100000, 120000)
 gamma = 0.1
 momentum = 0.9
-ssd_net = build_ssd('train', 300, num_classes, forward_classes=3 if 'handle' in args.data_root else 21)
+ssd_net = build_ssd('train', 300, num_classes, forward_classes=3 if 'handle' in args.data_root else 21, basenet=args.basenet)
 net = ssd_net
 print (net)
 
@@ -89,9 +89,9 @@ if args.resume:
     print('Resuming training, loading {}...'.format(args.resume))
     ssd_net.load_weights(args.resume)
 else:
-    vgg_weights = torch.load(args.save_folder + args.basenet)
+    base_weights = torch.load(args.save_folder + args.basenet+'.pth')
     print('Loading base network...')
-    ssd_net.vgg.load_state_dict(vgg_weights)
+    ssd_net.vgg.load_state_dict(base_weights)
 
 if 'handles' in args.data_root:
   net.conf._modules['0'] = nn.Conv2d(512,12, kernel_size=(3,3), stride=(1,1), padding=(1,1))

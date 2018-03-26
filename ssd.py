@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from layers import *
+import torchvision
 from data import v2
 import os
 
@@ -123,6 +124,11 @@ class SSD(nn.Module):
 
 # This function is derived from torchvision VGG make_layers()
 # https://github.com/pytorch/vision/blob/master/torchvision/models/vgg.py
+
+# ----------------------------------------------------- #
+#                     base networks                     #
+# ----------------------------------------------------- #
+
 def vgg(cfg, i, batch_norm=False):
     layers = []
     in_channels = i
@@ -146,6 +152,18 @@ def vgg(cfg, i, batch_norm=False):
     return layers
 
 
+def densenet(cfg, i):
+	model = torchvision.models.densenet201(pretrained=True)
+
+	pass
+
+
+def inceptionv3(cfg, i):
+	pass
+
+
+#### extra layers, multibox layers ####
+
 def add_extras(cfg, i, batch_norm=False):
     # Extra layers added to VGG for feature scaling
     layers = []
@@ -163,22 +181,25 @@ def add_extras(cfg, i, batch_norm=False):
     return layers
 
 
-def multibox(vgg, extra_layers, cfg, num_classes):
+def multibox(basenet, extra_layers, cfg, num_classes):
     loc_layers = []
     conf_layers = []
-    vgg_source = [21, -2]
-    for k, v in enumerate(vgg_source):
-        loc_layers += [nn.Conv2d(vgg[v].out_channels,
-                                 cfg[k] * 4, kernel_size=3, padding=1)]
-        conf_layers += [nn.Conv2d(vgg[v].out_channels,
-                        cfg[k] * num_classes, kernel_size=3, padding=1)]
-    for k, v in enumerate(extra_layers[1::2], 2):
-        loc_layers += [nn.Conv2d(v.out_channels, cfg[k]
-                                 * 4, kernel_size=3, padding=1)]
-        conf_layers += [nn.Conv2d(v.out_channels, cfg[k]
-                                  * num_classes, kernel_size=3, padding=1)]
-    return vgg, extra_layers, (loc_layers, conf_layers)
+    if True:
+        vgg_source = [21, -2]
+        for k, v in enumerate(vgg_source):
+            loc_layers += [nn.Conv2d(basenet[v].out_channels, cfg[k] * 4, kernel_size=3, padding=1)]
+            conf_layers += [nn.Conv2d(basenet[v].out_channels, cfg[k] * num_classes, kernel_size=3, padding=1)]
+        for k, v in enumerate(extra_layers[1::2], 2):
+            loc_layers += [nn.Conv2d(v.out_channels, cfg[k] * 4, kernel_size=3, padding=1)]
+            conf_layers += [nn.Conv2d(v.out_channels, cfg[k] * num_classes, kernel_size=3, padding=1)]
+        return basenet, extra_layers, (loc_layers, conf_layers)
+    else:
+        raise NotImplementedError("implementing")
 
+
+# ----------------------------------------------------- #
+#          main function,  base configurations          #
+# ----------------------------------------------------- #
 
 base = {
     '300': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'C', 512, 512, 512, 'M',
@@ -195,14 +216,25 @@ mbox = {
 }
 
 
-def build_ssd(phase, size=300, num_classes=21, forward_classes=21):
+def build_ssd(phase, size=300, num_classes=21, forward_classes=21, basenet='vgg16'):
     if phase != "test" and phase != "train":
-        print("Error: Phase not recognized")
-        return
+        raise NameError("Error: Phase not recognized")
     if size != 300:
-        print("Error: Sorry only SSD300 is supported currently!")
-        return
-    base_, extras_, head_ = multibox(vgg(base[str(size)], 3),
-                                     add_extras(extras[str(size)], 1024),
-                                     mbox[str(size)], num_classes)
-    return SSD(phase, base_, extras_, head_, num_classes, forward_classes)
+        raise NotImplementedError("Error: Sorry only SSD300 is supported currently!")
+    if basenet == 'vgg16':
+        base_, extras_, head_ = multibox(vgg(base[str(size)], 3),
+                                     	add_extras(extras[str(size)], 1024),
+                                     	mbox[str(size)], num_classes)
+        return SSD(phase, base_, extras_, head_, num_classes, forward_classes)
+
+    if basenet == 'densenet':
+        base_, extras_, head_ = multibox((densenet, 3),
+                                     	add_extras(extras[str(size)], 1024),
+                                     	mbox[str(size)], num_classes)
+        return SSD(phase, base_, extras_, head_, num_classes, forward_classes)
+
+
+        #raise NotImplementedError("implementing")
+    if basenet == 'inceptionv3':
+        raise NotImplementedError("implementing")
+

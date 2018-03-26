@@ -101,6 +101,7 @@ class HandlesDetection(data.Dataset):
     def __init__(self, root, transform=None, target_transform=None, dataset='train'):
         self.root = root
         self.transform = transform
+        self.name = 'handles'
         self.target_transform = target_transform
         self._annopath = os.path.join('%s', dataset, 'Annotations', '%s', '%s.xml')
         self._imgpath  = os.path.join('%s', dataset, 'JPEGImages' , '%s', '%s.jpg')
