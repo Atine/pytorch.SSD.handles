@@ -1,17 +1,12 @@
 from __future__ import print_function
-import sys
 import os
 import argparse
 import torch
-import torch.nn as nn
 import torch.backends.cudnn as cudnn
-import torchvision.transforms as transforms
 from torch.autograd import Variable
 from data import VOCroot, BaseTransform
-from PIL import Image
 from data import AnnotationTransform_handles, HandlesDetection
 from data import AnnotationTransformVOC, VOCDetection
-import torch.utils.data as data
 from ssd import build_ssd
 
 VOC_CLASSES = (  # always index 0
@@ -25,15 +20,16 @@ HANDLES_CLASSES = ('door', 'handle')
 
 
 parser = argparse.ArgumentParser(description='Single Shot MultiBox Detection')
-parser.add_argument('--trained_model', required=True,
-                    type=str, help='Trained state_dict file path to open')
+parser.add_argument('--trained_model', required=True, type=str,
+                    help='Trained state_dict file path to open')
 parser.add_argument('--save_folder', default='eval/', type=str,
                     help='Dir to save results')
 parser.add_argument('--visual_threshold', default=0.6, type=float,
                     help='Final confidence threshold')
 parser.add_argument('--no-cuda', action='store_false', dest='cuda',
                     help='Use cuda to train model')
-parser.add_argument('--data_root', default=VOCroot, help='Location of VOC root directory')
+parser.add_argument('--data_root', default=VOCroot,
+                    help='Location of VOC root directory')
 
 args = parser.parse_args()
 
@@ -68,7 +64,6 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
         with open(filename, mode='a') as f:
             f.write('PREDICTIONS: '+'\n')
 
-
         for i in range(detections.size(1)):
             j = 0
             while detections[0, i, j, 0] >= 0.6:
@@ -78,23 +73,29 @@ def test_net(save_folder, net, cuda, testset, transform, thresh):
                 coords = (pt[0], pt[1], pt[2], pt[3])
                 pred_num += 1
                 with open(filename, mode='a') as f:
-                    f.write(str(pred_num)+' label: '+label_name+' score: ' +
-                            str(score) + ' '+' || '.join(str(c) for c in coords) + '\n')
+                    f.write(str(pred_num) +
+                            ' label: ' + label_name +
+                            ' score: ' + str(score) +
+                            ' ' + ' || '.join(str(c) for c in coords) + '\n')
                 j += 1
 
 
 if __name__ == '__main__':
     # load net
     if 'handle' in args.data_root:
-      num_classes = len(HANDLES_CLASSES) + 1 # +1 background
-      testset = HandlesDetection(args.data_root, None, AnnotationTransform_handles(), dataset='test')
-      labelmap = HANDLES_CLASSES
+        num_classes = len(HANDLES_CLASSES) + 1  # +1 background
+        testset = HandlesDetection(args.data_root, None,
+                                   AnnotationTransform_handles(),
+                                   dataset='test')
+        labelmap = HANDLES_CLASSES
     else:
-      num_classes = len(VOC_CLASSES) + 1 # +1 background
-      testset = VOCDetection(args.data_root, [('2007', 'test')], None, AnnotationTransformVOC())
-      labelmap = VOC_CLASSES
+        num_classes = len(VOC_CLASSES) + 1  # +1 background
+        testset = VOCDetection(args.data_root,
+                               [('2007', 'test')], None,
+                               AnnotationTransformVOC())
+        labelmap = VOC_CLASSES
 
-    net = build_ssd('test', 300, num_classes) # initialize SSD
+    net = build_ssd('test', 300, num_classes)  # initialize SSD
     net.load_weights(args.trained_model)
     net.eval()
     print('Finished loading model!')
