@@ -108,7 +108,7 @@ class HandlesDetection(data.Dataset):
         self.ids = list()
 
         rootpath = os.path.join(self.root)
-        subsets = ['doors', 'handles', 'knobs']
+        subsets = ['doors', 'handles']
         for name in subsets:
             path_name = os.path.join(rootpath, dataset, 'JPEGImages', name)
             for numbers in tqdm(glob.glob(os.path.join(path_name, '*.*'))):
