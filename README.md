@@ -1,3 +1,35 @@
+# SSD with handles dataset
+For Robocup
+
+## Environment
+python: python3
+pytorch: tested on 0.3.1
+
+## dataset
+Put anywhere
+
+## download pretrained weights:
+
+```Shell
+mkdir weights
+cd weights
+wget -O vgg16.pth https://s3.amazonaws.com/amdegroot-models/vgg16_reducedfc.pth
+```
+
+## Training
+The dataset seems to be very 'fragile', so we need to use a small learning rate
+
+```shell
+python3 train.py --lr 0.00001 --data_root [/path/to/handles_dataset]
+
+```
+
+
+
+---------------------------------------------------------------------------
+
+
+
 # SSD: Single Shot MultiBox Object Detector, in PyTorch
 A [PyTorch](http://pytorch.org/) implementation of [Single Shot MultiBox Detector](http://arxiv.org/abs/1512.02325) from the 2016 paper by Wei Liu, Dragomir Anguelov, Dumitru Erhan, Christian Szegedy, Scott Reed, Cheng-Yang, and Alexander C. Berg.  The official and original Caffe code can be found [here](https://github.com/weiliu89/caffe/tree/ssd).
 
